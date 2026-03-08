@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTube Summarizer</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f7fa;
+      color: #1a1a2e;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 48px 24px;
+    }
+
+    header { text-align: center; margin-bottom: 40px; }
+    header h1 { font-size: 28px; font-weight: 700; margin-bottom: 6px; }
+    header p { color: #6b7280; font-size: 15px; }
+
+    /* Input */
+    .input-group { display: flex; gap: 10px; margin-bottom: 32px; }
+
+    .input-group input {
+      flex: 1;
+      padding: 12px 16px;
+      border: 1.5px solid #d1d5db;
+      border-radius: 10px;
+      font-size: 15px;
+      outline: none;
+      transition: border-color 0.2s;
+      background: #fff;
+    }
+
+    .input-group input:focus {
+      border-color: #6366f1;
+      box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
+    }
+
+    /* Buttons */
+    button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s, opacity 0.2s, transform 0.1s;
+    }
+
+    button:active { transform: scale(0.97); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    .btn-primary { background: #6366f1; color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #4f46e5; }
+
+    .btn-secondary { background: #e0e7ff; color: #4338ca; margin-top: 24px; }
+    .btn-secondary:hover:not(:disabled) { background: #c7d2fe; }
+
+    /* Error */
+    .error {
+      background: #fef2f2;
+      color: #b91c1c;
+      border: 1px solid #fecaca;
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin-bottom: 24px;
+      font-size: 14px;
+      display: none;
+    }
+
+    /* Sections */
+    .section {
+      background: #fff;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+      display: none;
+    }
+
+    .section h2 {
+      font-size: 16px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #6366f1;
+      margin-bottom: 12px;
+    }
+
+    .section .content { font-size: 15px; color: #374151; }
+    .section .content ul { padding-left: 20px; }
+    .section .content li { margin-bottom: 8px; }
+
+    /* Loader */
+    .loader {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      padding: 20px 0;
+      color: #6b7280;
+      font-size: 14px;
+    }
+
+    .spinner {
+      width: 20px; height: 20px;
+      border: 2.5px solid #e5e7eb;
+      border-top-color: #6366f1;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Video title */
+    .video-title {
+      text-align: center;
+      font-size: 16px;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 24px;
+      display: none;
+    }
+
+    /* Quiz */
+    .quiz-question {
+      margin-bottom: 20px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #f3f4f6;
+    }
+
+    .quiz-question:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+    .quiz-question p.q-text { font-weight: 600; margin-bottom: 10px; color: #1a1a2e; }
+
+    .quiz-question label {
+      display: block;
+      padding: 8px 12px;
+      margin-bottom: 4px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background 0.15s;
+    }
+
+    .quiz-question label:hover { background: #f5f7fa; }
+    .quiz-question label.correct { background: #d1fae5; color: #065f46; }
+    .quiz-question label.incorrect { background: #fee2e2; color: #991b1b; }
+
+    .quiz-question .explanation {
+      margin-top: 8px;
+      padding: 10px 12px;
+      background: #f0fdf4;
+      border-radius: 8px;
+      font-size: 13px;
+      color: #166534;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>YouTube Summarizer</h1>
+    <p>Paste a YouTube link to get an AI-powered summary and quiz</p>
+  </header>
+
+  <div class="input-group">
+    <input type="text" id="url-input" placeholder="https://www.youtube.com/watch?v=..." />
+    <button class="btn-primary" id="summarize-btn">Summarize</button>
+  </div>
+
+  <div class="error" id="error-box"></div>
+  <div class="video-title" id="video-title"></div>
+
+  <div class="loader" id="summary-loader">
+    <div class="spinner"></div>
+    <span>Fetching transcript and generating summary…</span>
+  </div>
+
+  <div class="section" id="summary-section">
+    <h2>Summary</h2>
+    <div class="content" id="summary-content"></div>
+  </div>
+
+  <div class="section" id="takeaways-section">
+    <h2>Key Takeaways</h2>
+    <div class="content" id="takeaways-content"></div>
+  </div>
+
+  <button class="btn-secondary" id="quiz-btn" style="display:none">Generate Quiz</button>
+
+  <div class="loader" id="quiz-loader">
+    <div class="spinner"></div>
+    <span>Generating quiz questions…</span>
+  </div>
+
+  <div class="section" id="quiz-section">
+    <h2>Quiz</h2>
+    <div class="content" id="quiz-content"></div>
+  </div>
+</div>
+
+<script>
+// ── Config ──────────────────────────────────────
+const CLAUDE_MODEL = 'claude-sonnet-4-6';
+
+// ── State ───────────────────────────────────────
+let currentTranscript = '';
+
+// ── Helpers ─────────────────────────────────────
+const $ = (id) => document.getElementById(id);
+const show = (id, d = 'block') => $(id).style.display = d;
+const hide = (id) => $(id).style.display = 'none';
+
+function showError(msg) {
+  $('error-box').textContent = msg;
+  $('error-box').style.display = 'block';
+}
+
+function resetUI() {
+  hide('error-box');
+  hide('summary-section');
+  hide('takeaways-section');
+  hide('quiz-btn');
+  hide('quiz-section');
+  hide('video-title');
+  $('summary-content').innerHTML = '';
+  $('takeaways-content').innerHTML = '';
+  $('quiz-content').innerHTML = '';
+}
+
+// ── Extract video ID from any YouTube URL ───────
+function extractVideoId(url) {
+  try {
+    const u = new URL(url);
+    if (u.hostname.includes('youtube.com') && u.searchParams.has('v'))
+      return u.searchParams.get('v');
+    if (u.hostname === 'youtu.be')
+      return u.pathname.slice(1).split('/')[0];
+    const m = u.pathname.match(/\/(embed|shorts)\/([a-zA-Z0-9_-]{11})/);
+    if (m) return m[2];
+    return null;
+  } catch { return null; }
+}
+
+// ── Fetch transcript from our API ───────────────
+async function fetchTranscript(videoId) {
+  const res = await fetch(`/api/transcript?v=${videoId}`);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to fetch transcript.');
+
+  if (data.title) {
+    $('video-title').textContent = data.title;
+    show('video-title');
+  }
+
+  return data.transcript;
+}
+
+// ── Call Claude via our API proxy ────────────────
+async function callClaude(system, userMessage) {
+  const res = await fetch('/api/summarize', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: CLAUDE_MODEL,
+      max_tokens: 4096,
+      system,
+      messages: [{ role: 'user', content: userMessage }],
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `API error (${res.status})`);
+  }
+
+  const data = await res.json();
+  return data.content[0].text;
+}
+
+// ── Summarize ────────────────────────────────────
+async function handleSummarize() {
+  const url = $('url-input').value.trim();
+  resetUI();
+
+  const videoId = extractVideoId(url);
+  if (!videoId) return showError('Please enter a valid YouTube URL.');
+
+  const btn = $('summarize-btn');
+  btn.disabled = true;
+  show('summary-loader', 'flex');
+
+  try {
+    // 1. Get transcript
+    currentTranscript = await fetchTranscript(videoId);
+
+    // Truncate if too long (~60k chars ≈ 15k tokens)
+    const transcript = currentTranscript.length > 60000
+      ? currentTranscript.slice(0, 60000) + '\n\n[Transcript truncated]'
+      : currentTranscript;
+
+    // 2. Summarize with Claude
+    const systemPrompt = `You summarize YouTube video transcripts.
+Return your response in exactly this format:
+
+SUMMARY:
+(A clear paragraph, 3-6 sentences, capturing the core message)
+
+KEY TAKEAWAYS:
+- (Each takeaway on its own line, prefixed with a dash)
+
+Rules:
+- Include as many takeaways as the content warrants — don't force a fixed number.
+- Each takeaway should be specific and informative.
+- No other headings or commentary.`;
+
+    const response = await callClaude(
+      systemPrompt,
+      `Summarize this transcript:\n\n${transcript}`
+    );
+
+    // 3. Parse response
+    const summaryMatch = response.match(/SUMMARY:\s*([\s\S]*?)(?=KEY TAKEAWAYS:)/i);
+    const takeawaysMatch = response.match(/KEY TAKEAWAYS:\s*([\s\S]*)/i);
+
+    $('summary-content').textContent = summaryMatch ? summaryMatch[1].trim() : response;
+    show('summary-section');
+
+    const takeawaysText = takeawaysMatch ? takeawaysMatch[1].trim() : '';
+    if (takeawaysText) {
+      const items = takeawaysText.split('\n')
+        .map(l => l.replace(/^[-•*]\s*/, '').trim())
+        .filter(Boolean);
+      const ul = document.createElement('ul');
+      items.forEach(item => {
+        const li = document.createElement('li');
+        li.textContent = item;
+        ul.appendChild(li);
+      });
+      $('takeaways-content').innerHTML = '';
+      $('takeaways-content').appendChild(ul);
+      show('takeaways-section');
+    }
+
+    show('quiz-btn');
+
+  } catch (err) {
+    showError(err.message);
+  } finally {
+    hide('summary-loader');
+    btn.disabled = false;
+  }
+}
+
+// ── Quiz ─────────────────────────────────────────
+async function handleQuiz() {
+  hide('error-box');
+  hide('quiz-section');
+
+  const btn = $('quiz-btn');
+  btn.disabled = true;
+  show('quiz-loader', 'flex');
+
+  try {
+    const transcript = currentTranscript.length > 60000
+      ? currentTranscript.slice(0, 60000)
+      : currentTranscript;
+
+    const systemPrompt = `You generate quiz questions from video transcripts.
+Return ONLY a JSON array, no markdown fences. Each element:
+{
+  "question": "...",
+  "options": ["A) ...", "B) ...", "C) ...", "D) ..."],
+  "correctIndex": 0,
+  "explanation": "..."
+}
+Create 5 questions. correctIndex is 0-based. Make wrong answers plausible.`;
+
+    const response = await callClaude(
+      systemPrompt,
+      `Generate quiz questions:\n\n${transcript}`
+    );
+
+    const cleaned = response.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+    const questions = JSON.parse(cleaned);
+    renderQuiz(questions);
+    show('quiz-section');
+
+  } catch (err) {
+    showError('Failed to generate quiz: ' + err.message);
+  } finally {
+    hide('quiz-loader');
+    btn.disabled = false;
+  }
+}
+
+function renderQuiz(questions) {
+  const container = $('quiz-content');
+  container.innerHTML = '';
+
+  questions.forEach((q, qi) => {
+    const div = document.createElement('div');
+    div.className = 'quiz-question';
+
+    const qText = document.createElement('p');
+    qText.className = 'q-text';
+    qText.textContent = `${qi + 1}. ${q.question}`;
+    div.appendChild(qText);
+
+    const explanation = document.createElement('div');
+    explanation.className = 'explanation';
+    explanation.textContent = q.explanation;
+
+    q.options.forEach((opt, oi) => {
+      const label = document.createElement('label');
+      const radio = document.createElement('input');
+      radio.type = 'radio';
+      radio.name = `q${qi}`;
+      radio.style.marginRight = '8px';
+
+      radio.addEventListener('change', () => {
+        div.querySelectorAll('input[type="radio"]').forEach(r => r.disabled = true);
+        div.querySelectorAll('label').forEach((lbl, i) => {
+          if (i === q.correctIndex) lbl.className = 'correct';
+          else if (i === oi) lbl.className = 'incorrect';
+        });
+        explanation.style.display = 'block';
+      });
+
+      label.appendChild(radio);
+      label.appendChild(document.createTextNode(opt));
+      div.appendChild(label);
+    });
+
+    div.appendChild(explanation);
+    container.appendChild(div);
+  });
+}
+
+// ── Event listeners ──────────────────────────────
+$('summarize-btn').addEventListener('click', handleSummarize);
+$('quiz-btn').addEventListener('click', handleQuiz);
+$('url-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') handleSummarize();
+});
+</script>
+
+</body>
+</html>
